@@ -31,7 +31,7 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000 and add your Anthropic API key — [get one here](https://console.anthropic.com/settings/keys).
+Open http://localhost:3000 and add your Anthropic API key; [get one here](https://console.anthropic.com/settings/keys).
 
 ## Architecture notes
 
@@ -41,4 +41,4 @@ Open http://localhost:3000 and add your Anthropic API key — [get one here](htt
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) for the full text.
+MIT; see [LICENSE](./LICENSE) for the full text.
