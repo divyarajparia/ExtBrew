@@ -41,4 +41,4 @@ Open http://localhost:3000 and add your Anthropic API key — [get one here](htt
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE) for the full text.
