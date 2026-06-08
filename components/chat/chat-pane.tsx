@@ -7,6 +7,7 @@ import { ArrowRight, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useChatStore, type Message } from "@/lib/stores/chat-store";
 import { useApiKeyStore } from "@/lib/stores/api-key-store";
+import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import type { Highlighter } from "shiki";
 
 // ---------------------------------------------------------------------------
@@ -265,6 +266,7 @@ export function ChatPane() {
         body: JSON.stringify({
           apiKey,
           messages: [...history, { role: "user", content: trimmed }],
+          files: useFileSystemStore.getState().files,
         }),
       });
 
@@ -275,15 +277,41 @@ export function ChatPane() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let accumulated = "";
+      let lineBuffer = "";
+      let finished = false;
 
-      while (true) {
+      while (!finished) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        for (const char of text) {
-          accumulated += char;
-          updateLastMessage(accumulated);
-          await yieldToMain();
+
+        lineBuffer += decoder.decode(value, { stream: true });
+        const lines = lineBuffer.split("\n");
+        lineBuffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let event: any;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          if (event.type === "text_delta" && typeof event.text === "string") {
+            for (const char of (event.text as string)) {
+              accumulated += char;
+              updateLastMessage(accumulated);
+              await yieldToMain();
+            }
+          } else if (event.type === "end_turn") {
+            finished = true;
+            break;
+          } else if (event.type === "error") {
+            throw new Error(typeof event.message === "string" ? event.message : "Stream error");
+          } else {
+            console.log("[ExtBrew event]", event);
+          }
         }
       }
     } catch {
