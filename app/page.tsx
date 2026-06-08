@@ -92,9 +92,7 @@ function PanelSkeleton({ onAddKey, hydrated }: { onAddKey: () => void; hydrated:
       </div>
       <div className="w-px shrink-0 bg-border" />
       <div className="flex min-w-0 flex-col overflow-hidden" style={{ flex: "50 0 0" }}>
-        <PaneShell label="Editor">
-          <EditorPane />
-        </PaneShell>
+        <EditorPane />
       </div>
       <div className="w-px shrink-0 bg-border" />
       <div className="flex min-w-0 flex-col overflow-hidden" style={{ flex: "28 0 0" }}>
@@ -125,9 +123,7 @@ export default function Home() {
             </Panel>
             <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-brew-border-hover cursor-col-resize" />
             <Panel defaultSize="50">
-              <PaneShell label="Editor">
-                <EditorPane />
-              </PaneShell>
+              <EditorPane />
             </Panel>
             <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-brew-border-hover cursor-col-resize" />
             <Panel defaultSize="28" minSize="22" maxSize="42">
