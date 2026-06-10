@@ -74,7 +74,12 @@ const TOOLS = [
   },
 ];
 
-const SYSTEM_PROMPT = `You are ExtBrew, an AI assistant that builds Chrome Manifest V3 extensions. You have tools to create, read, edit, and delete files. When a user describes what they want, scaffold a working extension by calling the tools. Keep your explanations short — the user can see the files appearing in their editor as you work. Always end with a brief summary of what you built and how to load it in Chrome.`;
+const SYSTEM_PROMPT =
+  "You are ExtBrew, an AI assistant that builds Chrome Manifest V3 extensions. " +
+  "You have tools to create, read, edit, and delete files. " +
+  "When a user describes what they want, scaffold a working extension by calling the tools. " +
+  "Keep your explanations short -- the user can see the files appearing in their editor as you work. " +
+  "Always end with a brief summary of what you built and how to load it in Chrome.";
 
 function executeTool(
   name: string,
@@ -97,9 +102,9 @@ function executeTool(
     case "read_file":
       return workingFiles[input.path]
         ? { success: true, content: workingFiles[input.path].content }
-        : { success: false, error: `File not found: ${input.path}` };
+        : { success: false, error: "File not found: " + input.path };
     default:
-      return { success: false, error: `Unknown tool: ${name}` };
+      return { success: false, error: "Unknown tool: " + name };
   }
 }
 
@@ -261,7 +266,7 @@ async function runLoop(
       continue;
     }
 
-    emit({ type: "error", message: `Unexpected stop reason: ${stopReason}` });
+    emit({ type: "error", message: "Unexpected stop reason: " + stopReason });
     break;
   }
 

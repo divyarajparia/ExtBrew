@@ -11,23 +11,6 @@ import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import type { Highlighter } from "shiki";
 
 // ---------------------------------------------------------------------------
-// yieldToMain — schedule a macro-task so the browser can paint between chars.
-// MessageChannel fires faster than setTimeout (no 4 ms clamp), so we can drip
-// characters at the API's natural rate without falling behind.
-// ---------------------------------------------------------------------------
-const _mc = typeof MessageChannel !== "undefined" ? new MessageChannel() : null;
-if (_mc) _mc.port1.start();
-function yieldToMain(): Promise<void> {
-  if (_mc) {
-    return new Promise<void>((resolve) => {
-      _mc!.port2.onmessage = () => resolve();
-      _mc!.port1.postMessage(null);
-    });
-  }
-  return new Promise<void>((resolve) => setTimeout(resolve, 0));
-}
-
-// ---------------------------------------------------------------------------
 // Shiki singleton — loaded once, reused across all code blocks
 // ---------------------------------------------------------------------------
 const SUPPORTED_LANGS = [
@@ -299,11 +282,8 @@ export function ChatPane() {
           }
 
           if (event.type === "text_delta" && typeof event.text === "string") {
-            for (const char of (event.text as string)) {
-              accumulated += char;
-              updateLastMessage(accumulated);
-              await yieldToMain();
-            }
+            accumulated += event.text;
+            updateLastMessage(accumulated);
           } else if (event.type === "end_turn") {
             finished = true;
             break;
