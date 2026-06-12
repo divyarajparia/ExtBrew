@@ -13,6 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApiKeyStore } from "@/lib/stores/api-key-store";
+import { useChatStore } from "@/lib/stores/chat-store";
+import { useFileSystemStore } from "@/lib/stores/file-system-store";
 
 interface ApiKeyModalProps {
   open: boolean;
@@ -65,6 +67,8 @@ export function ApiKeyModal({ open, onOpenChange }: ApiKeyModalProps) {
 
   function handleClear() {
     clearApiKey();
+    useChatStore.getState().clearMessages();
+    useFileSystemStore.getState().clearFiles();
     toast("API key cleared");
     handleClose();
   }

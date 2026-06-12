@@ -2,12 +2,19 @@
 
 import { useRef, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import TextareaAutosize from "react-textarea-autosize";
-import { ArrowRight, Copy, Check } from "lucide-react";
+import { ArrowRight, Check, Copy, FilePen, FilePlus, FileX, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useChatStore, type Message } from "@/lib/stores/chat-store";
+import {
+  useChatStore,
+  type Message,
+  type TextPart,
+  type ToolCallPart,
+} from "@/lib/stores/chat-store";
 import { useApiKeyStore } from "@/lib/stores/api-key-store";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
+import { pickEntryFile } from "@/lib/utils/pick-entry-file";
 import type { Highlighter } from "shiki";
 
 // ---------------------------------------------------------------------------
@@ -79,7 +86,6 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
 
   return (
     <div className="my-2 rounded-md border border-border overflow-hidden text-xs">
-      {/* toolbar strip */}
       <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-1">
         <span className="font-mono text-muted-foreground">{lang !== "text" ? lang : ""}</span>
         <button
@@ -113,14 +119,13 @@ function MessageContent({ content }: { content: string }) {
   return (
     <div className="text-sm leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:mb-0.5">
       <ReactMarkdown
+        remarkPlugins={[remarkBreaks]}
         components={{
-          // Strip the default <pre> wrapper — CodeBlock handles its own container
           pre: ({ children }) => <>{children}</>,
           code: ({ className, children }) => {
             const codeStr = String(children);
             const lang = /language-(\w+)/.exec(className || "")?.[1];
 
-            // Inline code: no language tag and no newlines
             if (!lang && !codeStr.includes("\n")) {
               return (
                 <code className="bg-muted rounded px-1 py-0.5 text-xs font-mono">
@@ -162,16 +167,58 @@ function ThinkingDots() {
 }
 
 // ---------------------------------------------------------------------------
+// ToolCallRow
+// ---------------------------------------------------------------------------
+const TOOL_ICONS = {
+  create_file: { Icon: FilePlus, color: "text-brew-success" },
+  edit_file: { Icon: FilePen, color: "text-primary" },
+  delete_file: { Icon: FileX, color: "text-brew-error" },
+} as const;
+
+const TOOL_LABELS = {
+  create_file: {
+    running: "Creating file…",
+    done: (path: string) => "Created " + path,
+  },
+  edit_file: {
+    running: "Editing file…",
+    done: (path: string) => "Edited " + path,
+  },
+  delete_file: {
+    running: "Deleting file…",
+    done: (path: string) => "Deleted " + path,
+  },
+} as const;
+
+function ToolCallRow({ part }: { part: ToolCallPart }) {
+  const { Icon, color } = TOOL_ICONS[part.name];
+  const labels = TOOL_LABELS[part.name];
+  return (
+    <div className="flex items-center gap-2 pl-4 py-0.5 text-xs text-muted-foreground">
+      <Icon size={12} className={color} />
+      <span>{part.status === "running" ? labels.running : labels.done(part.path)}</span>
+      {part.status === "running" ? (
+        <Loader2 size={10} className="animate-spin" />
+      ) : (
+        <Check size={10} />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MessageItem
 // ---------------------------------------------------------------------------
 function MessageItem({
   message,
   isThinking,
-  isActiveStream,
+  isLastMessage,
+  isStreaming,
 }: {
   message: Message;
   isThinking: boolean;
-  isActiveStream: boolean;
+  isLastMessage: boolean;
+  isStreaming: boolean;
 }) {
   return (
     <div className="flex flex-col gap-0.5 px-4 py-2">
@@ -180,14 +227,21 @@ function MessageItem({
       </span>
       {isThinking ? (
         <ThinkingDots />
-      ) : isActiveStream ? (
-        // Skip markdown parsing while streaming — re-parsing the full AST on every
-        // chunk is expensive. Switch to rendered markdown once the stream ends.
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">
-          {message.content}
-        </p>
       ) : (
-        <MessageContent content={message.content} />
+        message.parts.map((part, i) => {
+          if (part.type === "tool_call") {
+            return <ToolCallRow key={part.id} part={part} />;
+          }
+          const isActiveTextPart =
+            isStreaming && isLastMessage && i === message.parts.length - 1;
+          return isActiveTextPart ? (
+            <p key={i} className="whitespace-pre-wrap text-sm leading-relaxed">
+              {part.text}
+            </p>
+          ) : (
+            <MessageContent key={i} content={part.text} />
+          );
+        })
       )}
     </div>
   );
@@ -196,13 +250,19 @@ function MessageItem({
 // ---------------------------------------------------------------------------
 // ChatPane
 // ---------------------------------------------------------------------------
+const MUTATIONS = ["create_file", "edit_file", "delete_file"] as const;
+type MutationName = (typeof MUTATIONS)[number];
+
 export function ChatPane() {
   const {
     messages,
     isStreaming,
     appendMessage,
-    updateLastMessage,
+    appendTextDelta,
+    addToolCallPart,
+    setToolCallDone,
     setStreaming,
+    setShowMode,
     popLastMessage,
   } = useChatStore();
   const apiKey = useApiKeyStore((s) => s.apiKey)!;
@@ -211,7 +271,6 @@ export function ChatPane() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Scroll to bottom on new messages or streaming updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
   }, [messages]);
@@ -220,27 +279,35 @@ export function ChatPane() {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
 
-    // Capture history before mutations so we send only real messages
+    // Flatten parts to plain strings for the API, before any store mutations
     const history = useChatStore.getState().messages.map((m) => ({
       role: m.role,
-      content: m.content,
+      content: m.parts
+        .filter((p): p is TextPart => p.type === "text")
+        .map((p) => p.text)
+        .join(""),
     }));
+    const apiMessages = [...history, { role: "user", content: trimmed }];
 
     setInput("");
 
     appendMessage({
       id: crypto.randomUUID(),
       role: "user",
-      content: trimmed,
+      parts: [{ type: "text", text: trimmed }],
       createdAt: Date.now(),
     });
     appendMessage({
       id: crypto.randomUUID(),
       role: "assistant",
-      content: "",
+      parts: [],
       createdAt: Date.now(),
     });
     setStreaming(true);
+
+    // Grab file-system actions once to avoid stale closures in the loop
+    const { createFile, editFile, deleteFile, setOpenFile } =
+      useFileSystemStore.getState();
 
     try {
       const res = await fetch("/api/chat", {
@@ -248,7 +315,7 @@ export function ChatPane() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey,
-          messages: [...history, { role: "user", content: trimmed }],
+          messages: apiMessages,
           files: useFileSystemStore.getState().files,
         }),
       });
@@ -259,9 +326,11 @@ export function ChatPane() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let accumulated = "";
       let lineBuffer = "";
       let finished = false;
+      // Flips true on the first mutation tool_call_complete in show mode.
+      // The next text_delta triggers the priority jump — "building done, now narrating."
+      let sawMutationToolCall = false;
 
       while (!finished) {
         const { done, value } = await reader.read();
@@ -282,16 +351,54 @@ export function ChatPane() {
           }
 
           if (event.type === "text_delta" && typeof event.text === "string") {
-            accumulated += event.text;
-            updateLastMessage(accumulated);
+            if (sawMutationToolCall && useChatStore.getState().showMode) {
+              const winner = pickEntryFile(useFileSystemStore.getState().files);
+              if (winner) setOpenFile(winner);
+              setShowMode(false);
+              sawMutationToolCall = false;
+            }
+            appendTextDelta(event.text);
+          } else if (
+            event.type === "tool_call_start" &&
+            (MUTATIONS as readonly string[]).includes(event.name)
+          ) {
+            addToolCallPart({
+              type: "tool_call",
+              id: event.id,
+              name: event.name as MutationName,
+              path: "",
+              status: "running",
+            });
+          } else if (
+            event.type === "tool_call_complete" &&
+            (MUTATIONS as readonly string[]).includes(event.name)
+          ) {
+            const { path, content } = (event.input ?? {}) as {
+              path: string;
+              content?: string;
+            };
+            setToolCallDone(event.id, path);
+            if (event.name === "create_file") createFile(path, content ?? "");
+            else if (event.name === "edit_file") editFile(path, content ?? "");
+            else if (event.name === "delete_file") deleteFile(path);
+            if (useChatStore.getState().showMode) {
+              if (event.name !== "delete_file") setOpenFile(path);
+              sawMutationToolCall = true;
+            }
           } else if (event.type === "end_turn") {
+            if (useChatStore.getState().showMode) {
+              const winner = pickEntryFile(useFileSystemStore.getState().files);
+              if (winner) setOpenFile(winner);
+              setShowMode(false);
+            }
             finished = true;
             break;
           } else if (event.type === "error") {
-            throw new Error(typeof event.message === "string" ? event.message : "Stream error");
-          } else {
-            console.log("[ExtBrew event]", event);
+            throw new Error(
+              typeof event.message === "string" ? event.message : "Stream error"
+            );
           }
+          // tool_call_delta, tool_result — ignore
         }
       }
     } catch {
@@ -305,7 +412,7 @@ export function ChatPane() {
   const isEmpty = messages.length === 0;
   const lastMsg = messages[messages.length - 1];
   const isLastThinking =
-    isStreaming && lastMsg?.role === "assistant" && lastMsg.content === "";
+    isStreaming && lastMsg?.role === "assistant" && lastMsg.parts.length === 0;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -341,11 +448,8 @@ export function ChatPane() {
                 key={msg.id}
                 message={msg}
                 isThinking={isLastThinking && i === messages.length - 1}
-                isActiveStream={
-                  isStreaming &&
-                  i === messages.length - 1 &&
-                  msg.role === "assistant"
-                }
+                isLastMessage={i === messages.length - 1}
+                isStreaming={isStreaming}
               />
             ))}
             <div ref={messagesEndRef} />
