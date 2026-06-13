@@ -356,13 +356,6 @@ export function ChatPane() {
               if (winner) setOpenFile(winner);
               setShowMode(false);
               sawMutationToolCall = false;
-              if (!useChatStore.getState().hasShownReadyToast) {
-                useChatStore.getState().setHasShownReadyToast(true);
-                toast.success("Your extension is ready", {
-                  description: "Click Download .zip to install it in Chrome",
-                  duration: 6000,
-                });
-              }
             }
             appendTextDelta(event.text);
           } else if (

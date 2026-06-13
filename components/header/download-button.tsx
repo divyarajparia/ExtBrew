@@ -4,11 +4,13 @@ import { Download, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useChatStore } from "@/lib/stores/chat-store";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { buildExtensionZip, deriveZipName } from "@/lib/utils/build-zip";
 
 export function DownloadButton() {
   const files = useFileSystemStore((s) => s.files);
+  const isStreaming = useChatStore((s) => s.isStreaming);
   const [busy, setBusy] = useState(false);
 
   const hasFiles = Object.keys(files).length > 0;
@@ -39,7 +41,7 @@ export function DownloadButton() {
   return (
     <Button
       onClick={handleDownload}
-      disabled={!hasFiles || busy}
+      disabled={!hasFiles || busy || isStreaming}
       size="sm"
       className="gap-1.5"
     >
