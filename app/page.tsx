@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ApiKeyModal } from "@/components/api-key-modal";
 import { ChatPane } from "@/components/chat/chat-pane";
 import { EditorPane } from "@/components/editor/editor-pane";
+import { DownloadButton } from "@/components/header/download-button";
 import { useApiKeyStore, useHasHydrated } from "@/lib/stores/api-key-store";
 
 function GitHubIcon() {
@@ -29,7 +30,8 @@ function Header({ onSettingsClick }: { onSettingsClick: () => void }) {
         <span className="text-base font-semibold">ExtBrew</span>
       </div>
       <div className="flex-1" />
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        <DownloadButton />
         <Button variant="ghost" size="icon" aria-label="Settings" onClick={onSettingsClick}>
           <Settings size={18} />
         </Button>

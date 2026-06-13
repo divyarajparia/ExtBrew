@@ -21,6 +21,7 @@ interface ChatState {
   messages: Message[];
   isStreaming: boolean;
   showMode: boolean;
+  hasShownReadyToast: boolean;
   appendMessage: (msg: Message) => void;
   appendTextDelta: (text: string) => void;
   addToolCallPart: (part: ToolCallPart) => void;
@@ -28,6 +29,7 @@ interface ChatState {
   popLastMessage: () => void;
   setStreaming: (val: boolean) => void;
   setShowMode: (val: boolean) => void;
+  setHasShownReadyToast: (val: boolean) => void;
   clearMessages: () => void;
 }
 
@@ -35,6 +37,7 @@ export const useChatStore = create<ChatState>()((set) => ({
   messages: [],
   isStreaming: false,
   showMode: true,
+  hasShownReadyToast: false,
 
   appendMessage: (msg) =>
     set((s) => ({ messages: [...s.messages, msg] })),
@@ -90,5 +93,7 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   setShowMode: (val) => set({ showMode: val }),
 
-  clearMessages: () => set({ messages: [], showMode: true }),
+  setHasShownReadyToast: (val) => set({ hasShownReadyToast: val }),
+
+  clearMessages: () => set({ messages: [], showMode: true, hasShownReadyToast: false }),
 }));
