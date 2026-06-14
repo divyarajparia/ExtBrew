@@ -390,13 +390,17 @@ export function ChatPane() {
               const winner = pickEntryFile(useFileSystemStore.getState().files);
               if (winner) setOpenFile(winner);
               setShowMode(false);
-              if (!useChatStore.getState().hasShownReadyToast) {
-                useChatStore.getState().setHasShownReadyToast(true);
-                toast.success("Your extension is ready", {
-                  description: "Click Download .zip to install it in Chrome",
-                  duration: 6000,
-                });
-              }
+            }
+            const currentFiles = useFileSystemStore.getState().files;
+            if (
+              !useChatStore.getState().hasShownReadyToast &&
+              Object.keys(currentFiles).length > 0
+            ) {
+              useChatStore.getState().setHasShownReadyToast(true);
+              toast.success("Your extension is ready", {
+                description: "Click Download .zip to install it in Chrome",
+                duration: 6000,
+              });
             }
             finished = true;
             break;

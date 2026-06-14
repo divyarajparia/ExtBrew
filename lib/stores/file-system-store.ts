@@ -11,6 +11,7 @@ interface FileSystemState {
   openFile: string | null;
   createFile: (path: string, content: string) => void;
   editFile: (path: string, content: string) => void;
+  updateFileContent: (path: string, content: string) => void;
   deleteFile: (path: string) => void;
   setOpenFile: (path: string | null) => void;
   clearFiles: () => void;
@@ -27,6 +28,11 @@ export const useFileSystemStore = create<FileSystemState>()((set) => ({
     set((s) => ({
       files: { ...s.files, [path]: { content, language: inferLanguage(path) } },
     })),
+  updateFileContent: (path, content) =>
+    set((s) => {
+      if (!s.files[path]) return s;
+      return { files: { ...s.files, [path]: { ...s.files[path], content } } };
+    }),
   deleteFile: (path) =>
     set((s) => {
       const files = { ...s.files };

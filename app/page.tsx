@@ -9,10 +9,12 @@ import {
 } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { ApiKeyModal } from "@/components/api-key-modal";
+import { InstallModal } from "@/components/install-modal";
 import { ChatPane } from "@/components/chat/chat-pane";
 import { EditorPane } from "@/components/editor/editor-pane";
 import { DownloadButton } from "@/components/header/download-button";
 import { useApiKeyStore, useHasHydrated } from "@/lib/stores/api-key-store";
+import { useInstallModalStore } from "@/lib/stores/install-modal-store";
 
 function GitHubIcon() {
   return (
@@ -23,6 +25,8 @@ function GitHubIcon() {
 }
 
 function Header({ onSettingsClick }: { onSettingsClick: () => void }) {
+  const openManually = useInstallModalStore((s) => s.openManually);
+
   return (
     <header className="sticky top-0 z-10 flex h-12 w-full items-center border-b border-border bg-background px-5">
       <div className="flex items-center gap-2">
@@ -31,6 +35,12 @@ function Header({ onSettingsClick }: { onSettingsClick: () => void }) {
       </div>
       <div className="flex-1" />
       <div className="flex items-center gap-2">
+        <button
+          onClick={openManually}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          How to install
+        </button>
         <DownloadButton />
         <Button variant="ghost" size="icon" aria-label="Settings" onClick={onSettingsClick}>
           <Settings size={18} />
@@ -142,6 +152,7 @@ export default function Home() {
       </main>
 
       <ApiKeyModal open={modalOpen} onOpenChange={setModalOpen} />
+      <InstallModal />
     </div>
   );
 }

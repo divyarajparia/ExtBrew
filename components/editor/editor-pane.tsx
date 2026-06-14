@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRef, useEffect } from "react";
 import { FolderOpen } from "lucide-react";
 import { FileTree } from "@/components/editor/file-tree";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
@@ -12,6 +13,40 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 export function EditorPane() {
   const files = useFileSystemStore((s) => s.files);
   const openFile = useFileSystemStore((s) => s.openFile);
+  const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
+
+  const pendingEdit = useRef<{ path: string; value: string } | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      if (pendingEdit.current) {
+        updateFileContent(pendingEdit.current.path, pendingEdit.current.value);
+        pendingEdit.current = null;
+      }
+    };
+  }, []);
+
+  function handleEditorChange(value: string | undefined) {
+    if (value === undefined || !openFile) return;
+
+    if (pendingEdit.current && pendingEdit.current.path !== openFile) {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      updateFileContent(pendingEdit.current.path, pendingEdit.current.value);
+      pendingEdit.current = null;
+    }
+
+    pendingEdit.current = { path: openFile, value };
+
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      if (pendingEdit.current) {
+        updateFileContent(pendingEdit.current.path, pendingEdit.current.value);
+        pendingEdit.current = null;
+      }
+    }, 300);
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -43,6 +78,7 @@ export function EditorPane() {
               renderLineHighlight: "none",
               overviewRulerBorder: false,
             }}
+            onChange={handleEditorChange}
           />
         )}
       </div>
