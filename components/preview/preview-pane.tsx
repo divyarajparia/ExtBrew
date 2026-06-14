@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
+import { usePreviewStorageStore } from "@/lib/stores/preview-storage-store";
 import { hasPopup, getExtensionName } from "@/lib/utils/preview-detect";
 import { buildPreviewHtml, isRenderReady } from "@/lib/utils/build-preview-html";
 
@@ -76,30 +77,80 @@ function EmptyState() {
 function PopupFrame() {
   const files = useFileSystemStore((s) => s.files);
   const ready = isRenderReady(files);
-  const srcdoc = useMemo(() => (ready ? buildPreviewHtml(files) : null), [files, ready]);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const hasRenderedOnceRef = useRef(false);
 
-  // Latch: once we've rendered once, don't go back to the loading state on
-  // subsequent edits (CSS already exists at that point, ready stays true).
-  const everBeenReady = useRef(false);
-  if (ready) everBeenReady.current = true;
+  const shouldRender = hasRenderedOnceRef.current || ready;
 
-  const [debouncedSrcdoc, setDebouncedSrcdoc] = useState<string | null>(srcdoc);
+  const srcdoc = useMemo(() => buildPreviewHtml(files), [files]);
+
+  const [debouncedSrcdoc, setDebouncedSrcdoc] = useState<string | null>(
+    shouldRender ? srcdoc : null
+  );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!shouldRender) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       setDebouncedSrcdoc(srcdoc);
+      hasRenderedOnceRef.current = true;
     }, 300);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [srcdoc]);
+  }, [srcdoc, shouldRender]);
 
-  if (!everBeenReady.current) {
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      const msg = event.data as {
+        source?: string;
+        op?: string;
+        args?: unknown[];
+        requestId?: number;
+      };
+      if (!msg || msg.source !== "extbrew-iframe" || !msg.requestId) return;
+      if (!iframeRef.current?.contentWindow) return;
+
+      const store = usePreviewStorageStore.getState();
+      let result: unknown = undefined;
+
+      try {
+        switch (msg.op) {
+          case "storage.get":
+            result = store.get((msg.args?.[0] ?? null) as string | string[] | null);
+            break;
+          case "storage.set":
+            store.set(msg.args?.[0] as Record<string, unknown>);
+            break;
+          case "storage.remove":
+            store.remove(msg.args?.[0] as string | string[]);
+            break;
+          case "storage.clear":
+            store.clear();
+            break;
+          default:
+            console.warn("[ExtBrew preview] unknown storage op:", msg.op);
+        }
+      } catch (err) {
+        console.error("[ExtBrew preview] storage broker error:", err);
+      }
+
+      iframeRef.current.contentWindow.postMessage(
+        { source: "extbrew-preview", requestId: msg.requestId, result },
+        "*"
+      );
+    }
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  if (!shouldRender) {
     return (
-      <div className="p-4 text-center text-xs text-muted-foreground">
-        Building preview…
+      <div className="flex h-[400px] w-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+        <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+        <span>Waiting for styles…</span>
       </div>
     );
   }
@@ -114,6 +165,7 @@ function PopupFrame() {
 
   return (
     <iframe
+      ref={iframeRef}
       srcDoc={debouncedSrcdoc}
       sandbox="allow-scripts"
       className="h-[400px] w-full border-0"

@@ -1,3 +1,5 @@
+import { getChromePolyfillJs } from "./chrome-polyfill";
+
 type FileEntry = { content: string; language: string };
 
 function escapeScriptContent(js: string): string {
@@ -66,5 +68,13 @@ export function buildPreviewHtml(
   let html = popup.content;
   html = inlineStylesheets(html, files);
   html = inlineScripts(html, files);
+
+  const polyfillScript = `<script data-polyfill="extbrew">${getChromePolyfillJs()}</script>`;
+  if (html.match(/<head[^>]*>/i)) {
+    html = html.replace(/(<head[^>]*>)/i, "$1\n" + polyfillScript);
+  } else {
+    html = polyfillScript + html;
+  }
+
   return html;
 }
