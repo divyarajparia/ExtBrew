@@ -37,6 +37,26 @@ function inlineScripts(
   );
 }
 
+function referencedStylesheets(html: string): string[] {
+  const hrefs: string[] = [];
+  const re = /<link\s+[^>]*?href=["']([^"']+)["'][^>]*?>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const tag = m[0];
+    if (/rel=["']stylesheet["']/i.test(tag)) hrefs.push(m[1]);
+  }
+  return hrefs;
+}
+
+export function isRenderReady(files: Record<string, FileEntry>): boolean {
+  const popup = files["popup.html"];
+  if (!popup) return false;
+  const refs = referencedStylesheets(popup.content);
+  return refs.every(
+    (href) => !!(files[href] ?? files[href.replace(/^\.?\//, "")])
+  );
+}
+
 export function buildPreviewHtml(
   files: Record<string, FileEntry>
 ): string | null {

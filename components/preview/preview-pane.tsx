@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { hasPopup, getExtensionName } from "@/lib/utils/preview-detect";
-import { buildPreviewHtml } from "@/lib/utils/build-preview-html";
+import { buildPreviewHtml, isRenderReady } from "@/lib/utils/build-preview-html";
 
 export function PreviewPane() {
   const files = useFileSystemStore((s) => s.files);
@@ -75,7 +75,13 @@ function EmptyState() {
 
 function PopupFrame() {
   const files = useFileSystemStore((s) => s.files);
-  const srcdoc = useMemo(() => buildPreviewHtml(files), [files]);
+  const ready = isRenderReady(files);
+  const srcdoc = useMemo(() => (ready ? buildPreviewHtml(files) : null), [files, ready]);
+
+  // Latch: once we've rendered once, don't go back to the loading state on
+  // subsequent edits (CSS already exists at that point, ready stays true).
+  const everBeenReady = useRef(false);
+  if (ready) everBeenReady.current = true;
 
   const [debouncedSrcdoc, setDebouncedSrcdoc] = useState<string | null>(srcdoc);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,6 +95,14 @@ function PopupFrame() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [srcdoc]);
+
+  if (!everBeenReady.current) {
+    return (
+      <div className="p-4 text-center text-xs text-muted-foreground">
+        Building preview…
+      </div>
+    );
+  }
 
   if (debouncedSrcdoc === null) {
     return (
