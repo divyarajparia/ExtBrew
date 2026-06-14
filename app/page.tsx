@@ -13,6 +13,7 @@ import { InstallModal } from "@/components/install-modal";
 import { ChatPane } from "@/components/chat/chat-pane";
 import { EditorPane } from "@/components/editor/editor-pane";
 import { DownloadButton } from "@/components/header/download-button";
+import { PreviewPane } from "@/components/preview/preview-pane";
 import { useApiKeyStore, useHasHydrated } from "@/lib/stores/api-key-store";
 import { useInstallModalStore } from "@/lib/stores/install-modal-store";
 
@@ -108,11 +109,7 @@ function PanelSkeleton({ onAddKey, hydrated }: { onAddKey: () => void; hydrated:
       </div>
       <div className="w-px shrink-0 bg-border" />
       <div className="flex min-w-0 flex-col overflow-hidden" style={{ flex: "28 0 0" }}>
-        <PaneShell label="Preview">
-          <div className="flex flex-1 items-center justify-center">
-            <span className="text-sm text-muted-foreground">Preview pane (Phase 4)</span>
-          </div>
-        </PaneShell>
+        <PreviewPane />
       </div>
     </div>
   );
@@ -139,11 +136,7 @@ export default function Home() {
             </Panel>
             <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-brew-border-hover cursor-col-resize" />
             <Panel defaultSize="28" minSize="22" maxSize="42">
-              <PaneShell label="Preview">
-                <div className="flex flex-1 items-center justify-center">
-                  <span className="text-sm text-muted-foreground">Preview pane (Phase 4)</span>
-                </div>
-              </PaneShell>
+              <PreviewPane />
             </Panel>
           </PanelGroup>
         ) : (
