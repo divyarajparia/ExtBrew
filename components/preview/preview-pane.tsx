@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { hasPopup, getExtensionName } from "@/lib/utils/preview-detect";
+import { buildPreviewHtml } from "@/lib/utils/build-preview-html";
 
 export function PreviewPane() {
   const files = useFileSystemStore((s) => s.files);
@@ -19,7 +21,7 @@ export function PreviewPane() {
 
       <div className="flex flex-1 items-center justify-center overflow-hidden p-4">
         <FauxBrowserFrame extensionName={extName}>
-          {popupExists ? <PopupPlaceholder /> : <EmptyState />}
+          {popupExists ? <PopupFrame /> : <EmptyState />}
         </FauxBrowserFrame>
       </div>
     </div>
@@ -51,7 +53,7 @@ function FauxBrowserFrame({
         </div>
       </div>
 
-      <div className="flex min-h-[400px] items-center justify-center bg-background p-4">
+      <div className="flex min-h-[400px] items-center justify-center bg-background">
         {children}
       </div>
     </div>
@@ -60,7 +62,7 @@ function FauxBrowserFrame({
 
 function EmptyState() {
   return (
-    <div className="text-center">
+    <div className="p-4 text-center">
       <p className="text-sm font-medium text-foreground">
         Your popup will render here
       </p>
@@ -71,12 +73,37 @@ function EmptyState() {
   );
 }
 
-function PopupPlaceholder() {
+function PopupFrame() {
+  const files = useFileSystemStore((s) => s.files);
+  const srcdoc = useMemo(() => buildPreviewHtml(files), [files]);
+
+  const [debouncedSrcdoc, setDebouncedSrcdoc] = useState<string | null>(srcdoc);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setDebouncedSrcdoc(srcdoc);
+    }, 300);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [srcdoc]);
+
+  if (debouncedSrcdoc === null) {
+    return (
+      <div className="p-4 text-center text-xs text-muted-foreground">
+        popup.html is empty or invalid
+      </div>
+    );
+  }
+
   return (
-    <div className="text-center">
-      <p className="text-sm text-muted-foreground">
-        popup.html detected — iframe rendering coming in sub-step 2
-      </p>
-    </div>
+    <iframe
+      srcDoc={debouncedSrcdoc}
+      sandbox="allow-scripts"
+      className="h-[400px] w-full border-0"
+      title="Extension popup preview"
+    />
   );
 }
