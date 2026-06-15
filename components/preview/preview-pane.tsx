@@ -6,6 +6,7 @@ import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { usePreviewStorageStore } from "@/lib/stores/preview-storage-store";
 import { hasPopup, getExtensionName, isPageModifier } from "@/lib/utils/preview-detect";
 import { buildPreviewHtml, isPreviewReady } from "@/lib/utils/build-preview-html";
+import { getFakePageHtml } from "@/lib/utils/fake-page-html";
 
 export function PreviewPane() {
   const files = useFileSystemStore((s) => s.files);
@@ -63,22 +64,29 @@ function FauxBrowserFrame({
         </div>
       </div>
 
-      <div className="flex min-h-[400px] flex-col bg-background">
+      <div className={`flex flex-col bg-background ${expanded ? "min-h-[560px]" : "min-h-[400px]"}`}>
         {children}
       </div>
     </div>
   );
 }
 
+function FakePageFrame() {
+  const srcdoc = useMemo(() => getFakePageHtml(), []);
+  return (
+    <iframe
+      srcDoc={srcdoc}
+      sandbox="allow-scripts"
+      className="h-full w-full border-0 bg-white"
+      title="Demo webpage"
+    />
+  );
+}
+
 function PageModifierLayout({ popupExists }: { popupExists: boolean }) {
   return (
-    <div className="relative flex min-h-[400px] w-full flex-col bg-white">
-      <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
-        <div>
-          <p className="font-medium text-foreground">Fake webpage will render here</p>
-          <p className="mt-1">Page-modifier extension detected — full preview coming in sub-step 4.2</p>
-        </div>
-      </div>
+    <div className="relative flex min-h-[400px] w-full flex-col">
+      <FakePageFrame />
       {popupExists && (
         <div className="absolute right-2 top-2 w-[300px] overflow-hidden rounded-md border border-border bg-background shadow-md">
           <PopupFrame />
