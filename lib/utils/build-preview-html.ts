@@ -39,28 +39,23 @@ function inlineScripts(
   );
 }
 
-function referencedStylesheets(html: string): string[] {
-  const hrefs: string[] = [];
-  const re = /<link\s+[^>]*?href=["']([^"']+)["'][^>]*?>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const tag = m[0];
-    if (/rel=["']stylesheet["']/i.test(tag)) hrefs.push(m[1]);
-  }
-  return hrefs;
-}
 
-export function isRenderReady(files: Record<string, FileEntry>): boolean {
+export function isPreviewReady(files: Record<string, FileEntry>): boolean {
   const popup = files["popup.html"];
   if (!popup) return false;
-  const refs = referencedStylesheets(popup.content);
-  return refs.every(
-    (href) => !!(files[href] ?? files[href.replace(/^\.?\//, "")])
-  );
+  const linkMatches = popup.content.matchAll(/<link\s+[^>]*?rel=["']stylesheet["'][^>]*?>/gi);
+  for (const linkTag of linkMatches) {
+    const hrefMatch = linkTag[0].match(/href=["']([^"']+)["']/i);
+    if (!hrefMatch) continue;
+    const href = hrefMatch[1];
+    if (!(files[href] ?? files[href.replace(/^\.?\//, "")])) return false;
+  }
+  return true;
 }
 
 export function buildPreviewHtml(
-  files: Record<string, FileEntry>
+  files: Record<string, FileEntry>,
+  initialStorage: Record<string, unknown> = {}
 ): string | null {
   const popup = files["popup.html"];
   if (!popup) return null;
@@ -69,11 +64,20 @@ export function buildPreviewHtml(
   html = inlineStylesheets(html, files);
   html = inlineScripts(html, files);
 
-  const polyfillScript = `<script data-polyfill="extbrew">${getChromePolyfillJs()}</script>`;
+  const polyfillScript = `<script data-polyfill="extbrew">${getChromePolyfillJs(initialStorage)}</script>`;
+
+  let backgroundScript = "";
+  const bgEntry = files["background.js"];
+  if (bgEntry) {
+    const escaped = escapeScriptContent(bgEntry.content);
+    backgroundScript = `<script data-background="extbrew">${escaped}</script>`;
+  }
+
+  const injected = polyfillScript + backgroundScript;
   if (html.match(/<head[^>]*>/i)) {
-    html = html.replace(/(<head[^>]*>)/i, "$1\n" + polyfillScript);
+    html = html.replace(/(<head[^>]*>)/i, "$1\n" + injected);
   } else {
-    html = polyfillScript + html;
+    html = injected + html;
   }
 
   return html;

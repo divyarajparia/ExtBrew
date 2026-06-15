@@ -1,6 +1,7 @@
-export function getChromePolyfillJs(): string {
+export function getChromePolyfillJs(initialStorage: Record<string, unknown>): string {
   return `
 (function() {
+  const localCache = ${JSON.stringify(initialStorage)};
   let nextRequestId = 1;
   const pendingStorageRequests = new Map();
 
@@ -24,24 +25,39 @@ export function getChromePolyfillJs(): string {
 
   const storage = {
     get: (keys, callback) => {
-      const p = brokerStorageCall("storage.get", [keys]);
-      if (typeof callback === "function") p.then((r) => callback(r));
-      return p;
+      let result = {};
+      if (keys === null || keys === undefined) {
+        result = { ...localCache };
+      } else if (typeof keys === "string") {
+        if (keys in localCache) result[keys] = localCache[keys];
+      } else if (Array.isArray(keys)) {
+        for (const k of keys) { if (k in localCache) result[k] = localCache[k]; }
+      } else if (typeof keys === "object") {
+        for (const [k, def] of Object.entries(keys)) {
+          result[k] = k in localCache ? localCache[k] : def;
+        }
+      }
+      if (typeof callback === "function") callback(result);
+      return Promise.resolve(result);
     },
     set: (items, callback) => {
-      const p = brokerStorageCall("storage.set", [items]);
-      if (typeof callback === "function") p.then(() => callback());
-      return p;
+      Object.assign(localCache, items);
+      brokerStorageCall("storage.set", [items]);
+      if (typeof callback === "function") setTimeout(() => callback(), 0);
+      return Promise.resolve();
     },
     remove: (keys, callback) => {
-      const p = brokerStorageCall("storage.remove", [keys]);
-      if (typeof callback === "function") p.then(() => callback());
-      return p;
+      const arr = typeof keys === "string" ? [keys] : keys;
+      for (const k of arr) delete localCache[k];
+      brokerStorageCall("storage.remove", [keys]);
+      if (typeof callback === "function") setTimeout(() => callback(), 0);
+      return Promise.resolve();
     },
     clear: (callback) => {
-      const p = brokerStorageCall("storage.clear", []);
-      if (typeof callback === "function") p.then(() => callback());
-      return p;
+      for (const k of Object.keys(localCache)) delete localCache[k];
+      brokerStorageCall("storage.clear", []);
+      if (typeof callback === "function") setTimeout(() => callback(), 0);
+      return Promise.resolve();
     },
   };
 
@@ -54,16 +70,45 @@ export function getChromePolyfillJs(): string {
     sendMessage: (...args) => {
       const message = args[0];
       const callback = typeof args[args.length - 1] === "function" ? args[args.length - 1] : null;
+      let responseReceived = false;
       let response = undefined;
+      let asyncExpected = false;
+
       for (const listener of messageListeners) {
         try {
-          listener(message, { id: runtime.id }, (resp) => { response = resp; });
+          const sendResponse = (resp) => {
+            if (!responseReceived) {
+              responseReceived = true;
+              response = resp;
+              if (callback) setTimeout(() => callback(response), 0);
+            }
+          };
+          const result = listener(message, { id: runtime.id }, sendResponse);
+          if (result === true) asyncExpected = true;
         } catch (err) {
           console.error("[ExtBrew preview] runtime.onMessage listener error:", err);
         }
       }
-      if (callback) setTimeout(() => callback(response), 0);
-      return Promise.resolve(response);
+
+      if (callback && !responseReceived && !asyncExpected) {
+        setTimeout(() => callback(undefined), 0);
+      }
+
+      return new Promise((resolve) => {
+        if (responseReceived) {
+          resolve(response);
+        } else if (asyncExpected) {
+          const start = Date.now();
+          const poll = setInterval(() => {
+            if (responseReceived || Date.now() - start > 5000) {
+              clearInterval(poll);
+              resolve(response);
+            }
+          }, 10);
+        } else {
+          resolve(undefined);
+        }
+      });
     },
 
     onMessage: {
@@ -97,7 +142,25 @@ export function getChromePolyfillJs(): string {
     onRemoved: { addListener: () => {}, removeListener: () => {} },
   };
 
-  window.chrome = { storage: { local: storage, sync: storage }, runtime, tabs };
+  const alarms = {
+    create: () => {},
+    clear: (...args) => {
+      const cb = typeof args[args.length - 1] === "function" ? args[args.length - 1] : null;
+      if (cb) setTimeout(() => cb(false), 0);
+    },
+    clearAll: (callback) => {
+      if (typeof callback === "function") setTimeout(() => callback(false), 0);
+    },
+    get: (name, callback) => {
+      if (typeof callback === "function") setTimeout(() => callback(undefined), 0);
+    },
+    getAll: (callback) => {
+      if (typeof callback === "function") setTimeout(() => callback([]), 0);
+    },
+    onAlarm: { addListener: () => {}, removeListener: () => {} },
+  };
+
+  window.chrome = { storage: { local: storage, sync: storage }, runtime, tabs, alarms };
 })();
   `.trim();
 }

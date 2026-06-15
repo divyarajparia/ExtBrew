@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { usePreviewStorageStore } from "@/lib/stores/preview-storage-store";
 import { hasPopup, getExtensionName } from "@/lib/utils/preview-detect";
-import { buildPreviewHtml, isRenderReady } from "@/lib/utils/build-preview-html";
+import { buildPreviewHtml, isPreviewReady } from "@/lib/utils/build-preview-html";
 
 export function PreviewPane() {
   const files = useFileSystemStore((s) => s.files);
@@ -76,13 +76,17 @@ function EmptyState() {
 
 function PopupFrame() {
   const files = useFileSystemStore((s) => s.files);
-  const ready = isRenderReady(files);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const hasRenderedOnceRef = useRef(false);
 
+  const ready = isPreviewReady(files);
   const shouldRender = hasRenderedOnceRef.current || ready;
 
-  const srcdoc = useMemo(() => buildPreviewHtml(files), [files]);
+  const srcdoc = useMemo(
+    () => buildPreviewHtml(files, usePreviewStorageStore.getState().data),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [files]
+  );
 
   const [debouncedSrcdoc, setDebouncedSrcdoc] = useState<string | null>(
     shouldRender ? srcdoc : null
