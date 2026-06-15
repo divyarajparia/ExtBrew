@@ -47,7 +47,7 @@ export function PreviewPane() {
         </span>
       </div>
 
-      <div className="flex flex-1 items-center justify-center overflow-auto p-4">
+      <div className="flex flex-1 items-start justify-center overflow-auto px-4 pb-4">
         <FauxBrowserFrame
           extensionName={extName}
           iconPath={iconPath}
@@ -140,6 +140,8 @@ function UnifiedPreviewBody({
   onPageClick: () => void;
   onPopupClose: () => void;
 }) {
+  const [popupNaturalHeight, setPopupNaturalHeight] = useState(400);
+
   return (
     <>
       <div
@@ -151,7 +153,12 @@ function UnifiedPreviewBody({
 
       {popupExists && popupOpen && (
         <div
-          className="absolute right-2 top-2 flex h-[400px] w-[300px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-lg"
+          className="absolute right-2 top-2 flex w-[300px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-lg"
+          style={{
+            height: `${popupNaturalHeight}px`,
+            transform: "scale(0.6)",
+            transformOrigin: "top right",
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -161,7 +168,7 @@ function UnifiedPreviewBody({
           >
             <X size={16} />
           </button>
-          <PopupFrame />
+          <PopupFrame onNaturalHeight={setPopupNaturalHeight} />
         </div>
       )}
     </>
@@ -195,10 +202,11 @@ function EmptyState() {
   );
 }
 
-function PopupFrame() {
+function PopupFrame({ onNaturalHeight }: { onNaturalHeight?: (h: number) => void }) {
   const files = useFileSystemStore((s) => s.files);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const hasRenderedOnceRef = useRef(false);
+  const [naturalHeight, setNaturalHeight] = useState(400);
 
   const ready = isPreviewReady(files);
   const shouldRender = hasRenderedOnceRef.current || ready;
@@ -213,6 +221,11 @@ function PopupFrame() {
     shouldRender ? srcdoc : null
   );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setNaturalHeight(400);
+    onNaturalHeight?.(400);
+  }, [debouncedSrcdoc, onNaturalHeight]);
 
   useEffect(() => {
     if (!shouldRender) return;
@@ -234,7 +247,16 @@ function PopupFrame() {
         args?: unknown[];
         requestId?: number;
       };
-      if (!msg || msg.source !== "extbrew-iframe" || !msg.requestId) return;
+      if (!msg) return;
+
+      if (msg.source === "extbrew-popup-height" && typeof msg.height === "number") {
+        const h = msg.height > 0 ? msg.height : 400;
+        setNaturalHeight(h);
+        onNaturalHeight?.(h);
+        return;
+      }
+
+      if (msg.source !== "extbrew-iframe" || !msg.requestId) return;
       if (!iframeRef.current?.contentWindow) return;
 
       const store = usePreviewStorageStore.getState();
@@ -293,7 +315,8 @@ function PopupFrame() {
       ref={iframeRef}
       srcDoc={debouncedSrcdoc}
       sandbox="allow-scripts"
-      className="h-full w-full border-0"
+      className="block border-0"
+      style={{ width: "100%", height: `${naturalHeight}px` }}
       title="Extension popup preview"
     />
   );

@@ -198,7 +198,18 @@ Add "background", "content_scripts", and other top-level fields only when needed
 
 ## What "done" looks like
 
-Your output is a folder the user can zip, unzip, drag into chrome://extensions with Developer mode on, and have it run without console errors. Test yourself before summarizing: would manifest.json load? Are all referenced files created? Are permissions minimal? Are message handlers symmetric? Is storage consistent?`;
+Your output is a folder the user can zip, unzip, drag into chrome://extensions with Developer mode on, and have it run without console errors. Test yourself before summarizing: would manifest.json load? Are all referenced files created? Are permissions minimal? Are message handlers symmetric? Is storage consistent?
+
+## Popup visual design
+
+Popups auto-size to the body's natural content height — never force a height:
+
+- Do NOT set \`height: 100vh\`, \`height: 100%\`, or \`min-height\` on \`html\` or \`body\`. This bloats scrollHeight and creates blank space below real content.
+- Do NOT set a fixed \`height\` on the popup's root container div.
+- Keep body padding tight: 12–16px max. No need for large breathing room.
+- Width is fine at 300px (Chrome's default); don't set an explicit body width.
+- Content-sized popup body example: \`body { margin: 0; padding: 12px 14px; font-family: system-ui, sans-serif; }\`
+- Bad example to avoid: \`body { height: 100vh; min-height: 400px; padding: 24px; }\``;
 
 function executeTool(
   name: string,

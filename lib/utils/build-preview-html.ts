@@ -73,7 +73,11 @@ export function buildPreviewHtml(
     backgroundScript = `<script data-background="extbrew">${escaped}</script>`;
   }
 
-  const injected = polyfillScript + backgroundScript;
+  const heightReporter = `<script data-height-reporter="extbrew">(function(){var lastH=-1;function fix(){document.documentElement.style.height="auto";document.documentElement.style.minHeight="0";document.body.style.height="auto";document.body.style.minHeight="0";document.body.style.overflowX="hidden";}function report(){fix();var h=document.documentElement.scrollHeight;if(h===lastH)return;lastH=h;window.parent.postMessage({source:"extbrew-popup-height",height:h},"*");}if(document.readyState==="complete"){report();}else{window.addEventListener("load",report);}new ResizeObserver(report).observe(document.documentElement);})();<\/script>`;
+
+  const popupNormalizer = `<style data-popup-normalizer="extbrew">html,body{height:auto!important;min-height:0!important;overflow-x:hidden!important}</style>`;
+
+  const injected = polyfillScript + backgroundScript + popupNormalizer + heightReporter;
   if (html.match(/<head[^>]*>/i)) {
     html = html.replace(/(<head[^>]*>)/i, "$1\n" + injected);
   } else {
