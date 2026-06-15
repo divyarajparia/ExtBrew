@@ -70,3 +70,27 @@ export function getContentScriptCode(files: Record<string, FileEntry>): string |
 
   return null;
 }
+
+export function getExtensionIconPath(files: Record<string, FileEntry>): string | null {
+  const manifest = files["manifest.json"];
+  if (!manifest) return null;
+  let parsed: {
+    action?: { default_icon?: string | Record<string, string> };
+    icons?: Record<string, string>;
+  };
+  try { parsed = JSON.parse(manifest.content); } catch { return null; }
+
+  const actionIcon = parsed.action?.default_icon;
+  if (typeof actionIcon === "string") return actionIcon;
+  if (actionIcon && typeof actionIcon === "object") {
+    const sizes = Object.keys(actionIcon).sort((a, b) => Number(a) - Number(b));
+    if (sizes.length > 0) return actionIcon[sizes[0]];
+  }
+
+  const icons = parsed.icons;
+  if (icons && typeof icons === "object") {
+    const sizes = Object.keys(icons).sort((a, b) => Number(a) - Number(b));
+    if (sizes.length > 0) return icons[sizes[0]];
+  }
+  return null;
+}

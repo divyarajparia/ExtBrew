@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Puzzle, RotateCw, X } from "lucide-react";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { usePreviewStorageStore } from "@/lib/stores/preview-storage-store";
-import { hasPopup, getExtensionName, isPageModifier } from "@/lib/utils/preview-detect";
+import { useChatStore } from "@/lib/stores/chat-store";
+import { hasPopup, getExtensionName, getExtensionIconPath } from "@/lib/utils/preview-detect";
 import { buildPreviewHtml, isPreviewReady } from "@/lib/utils/build-preview-html";
 import { getFakePageHtml } from "@/lib/utils/fake-page-html";
 
@@ -12,7 +13,31 @@ export function PreviewPane() {
   const files = useFileSystemStore((s) => s.files);
   const popupExists = hasPopup(files);
   const extName = getExtensionName(files);
-  const pageModifier = isPageModifier(files);
+  const iconPath = getExtensionIconPath(files);
+  const isStreaming = useChatStore((s) => s.isStreaming);
+
+  const [popupOpen, setPopupOpen] = useState(false);
+  const lastAutoOpenedSignatureRef = useRef<string | null>(null);
+
+  const buildSignature = useMemo(
+    () => Object.keys(files).sort().join("|"),
+    [files]
+  );
+
+  // Auto-open once per completed build
+  useEffect(() => {
+    if (!popupExists) return;
+    if (isStreaming) return;
+    if (buildSignature === "") return;
+    if (lastAutoOpenedSignatureRef.current === buildSignature) return;
+    setPopupOpen(true);
+    lastAutoOpenedSignatureRef.current = buildSignature;
+  }, [buildSignature, popupExists, isStreaming]);
+
+  // Close if popup file disappears
+  useEffect(() => {
+    if (!popupExists && popupOpen) setPopupOpen(false);
+  }, [popupExists, popupOpen]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -23,14 +48,20 @@ export function PreviewPane() {
       </div>
 
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
-        <FauxBrowserFrame extensionName={extName} expanded={pageModifier}>
-          {pageModifier ? (
-            <PageModifierLayout popupExists={popupExists} />
-          ) : popupExists ? (
-            <PopupFrame />
-          ) : (
-            <EmptyState />
-          )}
+        <FauxBrowserFrame
+          extensionName={extName}
+          iconPath={iconPath}
+          popupExists={popupExists}
+          files={files}
+          popupOpen={popupOpen}
+          onIconClick={() => setPopupOpen((v) => !v)}
+        >
+          <UnifiedPreviewBody
+            popupExists={popupExists}
+            popupOpen={popupOpen}
+            onPageClick={() => setPopupOpen(false)}
+            onPopupClose={() => setPopupOpen(false)}
+          />
         </FauxBrowserFrame>
       </div>
     </div>
@@ -39,15 +70,28 @@ export function PreviewPane() {
 
 function FauxBrowserFrame({
   extensionName,
+  iconPath,
+  popupExists,
+  files,
+  popupOpen,
+  onIconClick,
   children,
-  expanded,
 }: {
   extensionName: string | null;
+  iconPath: string | null;
+  popupExists: boolean;
+  files: Record<string, { content: string; language: string }>;
+  popupOpen: boolean;
+  onIconClick: () => void;
   children: React.ReactNode;
-  expanded: boolean;
 }) {
+  // Icon files in generated extensions are usually text placeholders, not real
+  // PNG bytes, so we don't attempt to render them as <img> yet.
+  void iconPath;
+  void files;
+
   return (
-    <div className={`flex w-full ${expanded ? "max-w-[520px]" : "max-w-[360px]"} flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm`}>
+    <div className="flex w-full max-w-[600px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
       <div className="flex items-center gap-1.5 border-b border-border bg-muted px-3 py-2">
         <div className="flex gap-1.5">
           <div className="size-2.5 rounded-full bg-[#FF5F57]" />
@@ -60,14 +104,67 @@ function FauxBrowserFrame({
           <RotateCw size={10} />
         </div>
         <div className="ml-2 flex-1 truncate rounded bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
-          {extensionName ?? "your-extension"}
+          example.com
         </div>
+
+        {popupExists && (
+          <button
+            onClick={onIconClick}
+            className={`ml-1 flex size-5 shrink-0 items-center justify-center rounded transition-colors ${
+              popupOpen
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50"
+            }`}
+            title={extensionName ? `Open ${extensionName}` : "Open extension"}
+          >
+            <Puzzle size={12} />
+          </button>
+        )}
       </div>
 
-      <div className={`flex flex-col bg-background ${expanded ? "min-h-[560px]" : "min-h-[400px]"}`}>
+      <div className="relative flex h-[460px] flex-col overflow-hidden bg-background">
         {children}
       </div>
     </div>
+  );
+}
+
+function UnifiedPreviewBody({
+  popupExists,
+  popupOpen,
+  onPageClick,
+  onPopupClose,
+}: {
+  popupExists: boolean;
+  popupOpen: boolean;
+  onPageClick: () => void;
+  onPopupClose: () => void;
+}) {
+  return (
+    <>
+      <div
+        className="relative flex-1 cursor-default"
+        onClick={popupOpen ? onPageClick : undefined}
+      >
+        <FakePageFrame />
+      </div>
+
+      {popupExists && popupOpen && (
+        <div
+          className="absolute right-2 top-2 flex h-[400px] w-[300px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onPopupClose}
+            className="absolute right-2 top-2 z-10 flex size-7 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm hover:bg-background"
+            title="Close popup"
+          >
+            <X size={16} />
+          </button>
+          <PopupFrame />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -80,19 +177,6 @@ function FakePageFrame() {
       className="h-full w-full border-0 bg-white"
       title="Demo webpage"
     />
-  );
-}
-
-function PageModifierLayout({ popupExists }: { popupExists: boolean }) {
-  return (
-    <div className="relative flex min-h-[400px] w-full flex-col">
-      <FakePageFrame />
-      {popupExists && (
-        <div className="absolute right-2 top-2 w-[300px] overflow-hidden rounded-md border border-border bg-background shadow-md">
-          <PopupFrame />
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -209,8 +293,9 @@ function PopupFrame() {
       ref={iframeRef}
       srcDoc={debouncedSrcdoc}
       sandbox="allow-scripts"
-      className="h-[400px] w-full border-0"
+      className="h-full w-full border-0"
       title="Extension popup preview"
     />
   );
 }
+
