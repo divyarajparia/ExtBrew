@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { usePreviewStorageStore } from "@/lib/stores/preview-storage-store";
-import { hasPopup, getExtensionName } from "@/lib/utils/preview-detect";
+import { hasPopup, getExtensionName, isPageModifier } from "@/lib/utils/preview-detect";
 import { buildPreviewHtml, isPreviewReady } from "@/lib/utils/build-preview-html";
 
 export function PreviewPane() {
   const files = useFileSystemStore((s) => s.files);
   const popupExists = hasPopup(files);
   const extName = getExtensionName(files);
+  const pageModifier = isPageModifier(files);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -20,9 +21,15 @@ export function PreviewPane() {
         </span>
       </div>
 
-      <div className="flex flex-1 items-center justify-center overflow-hidden p-4">
-        <FauxBrowserFrame extensionName={extName}>
-          {popupExists ? <PopupFrame /> : <EmptyState />}
+      <div className="flex flex-1 items-center justify-center overflow-auto p-4">
+        <FauxBrowserFrame extensionName={extName} expanded={pageModifier}>
+          {pageModifier ? (
+            <PageModifierLayout popupExists={popupExists} />
+          ) : popupExists ? (
+            <PopupFrame />
+          ) : (
+            <EmptyState />
+          )}
         </FauxBrowserFrame>
       </div>
     </div>
@@ -32,12 +39,14 @@ export function PreviewPane() {
 function FauxBrowserFrame({
   extensionName,
   children,
+  expanded,
 }: {
   extensionName: string | null;
   children: React.ReactNode;
+  expanded: boolean;
 }) {
   return (
-    <div className="flex w-full max-w-[360px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
+    <div className={`flex w-full ${expanded ? "max-w-[520px]" : "max-w-[360px]"} flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm`}>
       <div className="flex items-center gap-1.5 border-b border-border bg-muted px-3 py-2">
         <div className="flex gap-1.5">
           <div className="size-2.5 rounded-full bg-[#FF5F57]" />
@@ -54,22 +63,42 @@ function FauxBrowserFrame({
         </div>
       </div>
 
-      <div className="flex min-h-[400px] items-center justify-center bg-background">
+      <div className="flex min-h-[400px] flex-col bg-background">
         {children}
       </div>
     </div>
   );
 }
 
+function PageModifierLayout({ popupExists }: { popupExists: boolean }) {
+  return (
+    <div className="relative flex min-h-[400px] w-full flex-col bg-white">
+      <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
+        <div>
+          <p className="font-medium text-foreground">Fake webpage will render here</p>
+          <p className="mt-1">Page-modifier extension detected — full preview coming in sub-step 4.2</p>
+        </div>
+      </div>
+      {popupExists && (
+        <div className="absolute right-2 top-2 w-[300px] overflow-hidden rounded-md border border-border bg-background shadow-md">
+          <PopupFrame />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
-    <div className="p-4 text-center">
-      <p className="text-sm font-medium text-foreground">
-        Your popup will render here
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Build an extension with a popup.html to see a preview
-      </p>
+    <div className="flex flex-1 items-center justify-center p-4 text-center">
+      <div>
+        <p className="text-sm font-medium text-foreground">
+          Your popup will render here
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Build an extension with a popup.html to see a preview
+        </p>
+      </div>
     </div>
   );
 }
