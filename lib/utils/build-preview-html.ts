@@ -73,7 +73,7 @@ export function buildPreviewHtml(
     backgroundScript = `<script data-background="extbrew">${escaped}</script>`;
   }
 
-  const heightReporter = `<script data-height-reporter="extbrew">(function(){var lastH=-1;function fix(){document.documentElement.style.height="auto";document.documentElement.style.minHeight="0";document.body.style.height="auto";document.body.style.minHeight="0";document.body.style.overflowX="hidden";}function report(){fix();var h=document.documentElement.scrollHeight;if(h===lastH)return;lastH=h;window.parent.postMessage({source:"extbrew-popup-height",height:h},"*");}if(document.readyState==="complete"){report();}else{window.addEventListener("load",report);}new ResizeObserver(report).observe(document.documentElement);})();<\/script>`;
+  const heightReporter = `<script data-height-reporter="extbrew">(function(){var lastH=-1;var lastW=-1;function fix(){document.documentElement.style.height="auto";document.documentElement.style.minHeight="0";document.body.style.height="auto";document.body.style.minHeight="0";document.body.style.overflowX="hidden";var r=document.body.firstElementChild;if(r instanceof HTMLElement){r.style.height="auto";r.style.minHeight="0";}}function report(){fix();var h=document.documentElement.scrollHeight;var w=document.body.offsetWidth;if(h===lastH&&w===lastW)return;lastH=h;lastW=w;window.parent.postMessage({source:"extbrew-popup-height",height:h,width:w},"*");}if(document.readyState==="complete"){report();}else{window.addEventListener("load",report);}new ResizeObserver(report).observe(document.documentElement);})();<\/script>`;
 
   const popupNormalizer = `<style data-popup-normalizer="extbrew">html,body{height:auto!important;min-height:0!important;overflow-x:hidden!important}</style>`;
 

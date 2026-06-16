@@ -48,9 +48,21 @@ function getHighlighter() {
 // Suggestion chips
 // ---------------------------------------------------------------------------
 const SUGGESTIONS = [
-  "Block distracting websites",
-  "Save tabs as JSON",
-  "Add dark mode to any website",
+  {
+    label: "Dark mode toggle",
+    detail: "Popup + content.js — toggle darkens the example page live",
+    prompt: "Build a dark mode extension with a popup that has an on/off toggle. When on, apply a CSS dark mode filter to the current page. When off, remove it.",
+  },
+  {
+    label: "Highlight dates in yellow",
+    detail: "Content script only — dates light up automatically on load",
+    prompt: "Build a Chrome extension that highlights all dates on a webpage in yellow. It should work on any date format like January 5 2026, 03/14/2025, or 2024-11-20.",
+  },
+  {
+    label: "Sticky notes popup",
+    detail: "Popup only — type a note, save it, reopen to find it waiting",
+    prompt: "Build a sticky notes Chrome extension. The popup should have a textarea to write a note and a save button. Notes should persist using chrome.storage so they survive closing and reopening the popup.",
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -440,14 +452,11 @@ export function ChatPane() {
             <div className="flex w-full flex-col gap-2">
               {SUGGESTIONS.map((s) => (
                 <button
-                  key={s}
-                  onClick={() => {
-                    setInput(s);
-                    textareaRef.current?.focus();
-                  }}
-                  className="rounded-md border border-border bg-background px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:border-brew-border-hover hover:text-foreground"
+                  key={s.label}
+                  onClick={() => handleSend(s.prompt)}
+                  className="rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-brew-border-hover hover:text-foreground"
                 >
-                  {s}
+                  <span className="block text-xs text-muted-foreground">{s.label}</span>
                 </button>
               ))}
             </div>

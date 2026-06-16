@@ -1,3 +1,24 @@
+import { getContentScriptPolyfillJs } from "./content-script-polyfill";
+
+export function buildFakePageHtmlWithContentScript(
+  contentScriptCode: string | null,
+  initialStorage: Record<string, unknown> = {}
+): string {
+  let html = getFakePageHtml();
+  if (!contentScriptCode) return html;
+
+  const polyfillScript = `<script data-extbrew="content-polyfill">${getContentScriptPolyfillJs(initialStorage)}</script>`;
+  const contentScript = `<script data-extbrew="content-script">${contentScriptCode.replace(/<\/script>/gi, "<\\/script>")}</script>`;
+
+  if (html.match(/<\/body>/i)) {
+    html = html.replace(/<\/body>/i, polyfillScript + contentScript + "</body>");
+  } else {
+    html = html + polyfillScript + contentScript;
+  }
+
+  return html;
+}
+
 export function getFakePageHtml(): string {
   return `
 <!DOCTYPE html>

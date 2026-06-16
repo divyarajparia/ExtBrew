@@ -96,10 +96,10 @@ Given a user request, produce a complete, loadable MV3 extension. "Complete" mea
 - Use a background service worker, never a background page. Declare it as: "background": { "service_worker": "background.js" }
 - Service workers cannot use localStorage, window, or DOM APIs. Use chrome.storage.local for persistence and chrome.runtime.sendMessage for cross-context communication.
 - For blocking network requests, use declarativeNetRequest with dynamic rules. Never use blocking webRequest (it doesn't exist in MV3).
-- Scope permissions tightly. Only request what's actually used. Common ones: "storage", "tabs", "scripting", "declarativeNetRequest", "activeTab". Never request "<all_urls>" host permissions unless the extension genuinely needs to run on every site.
-- Content scripts go in "content_scripts" with explicit "matches" patterns. For on-demand injection, use chrome.scripting.executeScript and request "scripting" permission.
+- Scope permissions tightly. Only request what's actually used. Common ones: "storage", "tabs", "declarativeNetRequest", "activeTab". Never request "<all_urls>" host permissions unless the extension genuinely needs to run on every site.
+- Content scripts go in "content_scripts" with explicit "matches" patterns. This is the canonical pattern for any page modification — see the "Page modification pattern" section below.
 - Action popups: declare with "action": { "default_popup": "popup.html" }. Popups can use localStorage and DOM APIs freely.
-- Icons: always include 16, 48, and 128 px versions in an "icons/" folder. Reference them in both "icons" and "action.default_icon".
+- Icons: always include 16, 48, and 128 px versions in an "icons/" folder. Reference them in both "icons" and "action.default_icon". See the "Icon files" section below for how to handle placeholders.
 
 ## File-manifest consistency (verify before ending turn)
 
@@ -120,6 +120,38 @@ If the user's request can be satisfied with just a popup + manifest, do that. Ad
 
 A 10-file extension when the user wanted "save my tabs to a JSON file" is over-engineered. A 2-file extension for that prompt is right.
 
+## Page modification pattern (CRITICAL — read carefully)
+
+For any extension that visually modifies the current webpage (dark mode, highlighters, font changers, ad blockers via DOM, page summaries, anything that changes what the user sees on a page they're viewing), use the content_scripts + chrome.tabs.sendMessage pattern. This is the canonical MV3 idiom.
+
+The pattern:
+1. Declare a content script in manifest.json:
+   "content_scripts": [{ "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" }]
+2. content.js registers a listener: chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => { ... })
+3. content.js applies the page changes (inject CSS, modify DOM, etc.) when it receives messages or on page load if the saved state says so
+4. popup.js reads/writes state to chrome.storage.local AND sends commands via chrome.tabs.query({active:true,currentWindow:true}, (tabs) => chrome.tabs.sendMessage(tabs[0].id, { type: "SET_..." }))
+5. content.js also reads chrome.storage.local on page load (DOMContentLoaded) to re-apply state when a new page loads
+
+Do NOT use chrome.scripting.executeScript for popup-controlled page modifiers. It's a more advanced API used for on-demand injection from background scripts in specific scenarios, not the standard popup-toggle pattern. Use content_scripts.
+
+Required permissions for this pattern: "storage" (always). "activeTab" if the popup needs to address the active tab. No "scripting" permission needed since we're using declared content scripts, not runtime injection.
+
+
+## Text-matching extensions (date/phone/URL/currency highlighters)
+
+If the extension matches text patterns in page content (dates, phone numbers, URLs, currencies, emails, etc.) and wraps matches with styling, follow these rules to avoid regex bugs:
+
+1. Use SEPARATE regex per format, not one monolithic regex with 4+ alternation branches. For a date highlighter, write distinct patterns for ISO (\\d{4}-\\d{2}-\\d{2}), US numeric (\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}), long-form (January 5, 2026), and reversed (5 January 2026). Run each separately and combine results. This makes paren-balance bugs impossible and the code easier to debug.
+
+2. After writing each regex, mentally walk through opening and closing parens to confirm they balance. If you cannot easily count them, the regex is too complex — split it.
+
+3. Prefer non-capturing groups (?:...) over capturing groups (...) when you don't need the capture. Fewer parens, less to track.
+
+4. Apply highlights/wraps in a single DOM walk (TreeWalker over text nodes), checking each text node against your simple regexes. Do not try to walk innerHTML — it corrupts existing DOM structure.
+
+This rule applies only to text-matching extensions. Extensions that don't match text in page content (dark mode, site blockers, notes apps, tab savers) do not need this guidance.
+
+
 ## Architecture patterns by extension type
 
 Pick the right pattern based on what the user describes:
@@ -130,10 +162,11 @@ Pick the right pattern based on what the user describes:
 - Files: manifest.json, background.js (rule management), popup.html/js (UI), optionally a rules.json static ruleset
 
 **Page modifier** (e.g., "add dark mode", "change the font", "highlight things"):
-- Content script that runs on document_idle and injects CSS/JS
-- Popup or action button for toggle state, persisted via chrome.storage.local
-- Permissions: "storage", "activeTab", "scripting" (if dynamic injection)
-- Files: manifest.json, content.js, content.css (optional), popup.html/js, background.js (only if needed for state sync across tabs)
+- Content script (see "Page modification pattern" above) running on document_idle
+- Popup toggles state, persists via chrome.storage.local, sends messages to content.js via chrome.tabs.sendMessage
+- Permissions: "storage", "activeTab"
+- Files: manifest.json, content.js, content.css (optional), popup.html/js
+- Add background.js ONLY if you need cross-tab broadcast on state changes; otherwise omit it
 
 **Data tool** (e.g., "save tabs", "export bookmarks", "track time"):
 - Background service worker with chrome.tabs / chrome.bookmarks APIs
@@ -153,7 +186,7 @@ If a request spans multiple patterns, compose them. If unclear, pick the simples
 
 Whenever you send a message via chrome.runtime.sendMessage or chrome.tabs.sendMessage from one file, the receiving file must have a corresponding chrome.runtime.onMessage.addListener that handles that exact message type. Do not introduce a message type on the sender side without adding a handler on the receiver side.
 
-If you have a popup that sends { type: "SET_DARK_MODE" } and a background.js that doesn't handle "SET_DARK_MODE", that's a bug. The popup will silently fail and the extension won't work. Always pair them.
+If you have a popup that sends { type: "SET_DARK_MODE" } and a content.js that doesn't handle "SET_DARK_MODE", that's a bug. The popup will silently fail and the extension won't work. Always pair them.
 
 ## Storage layer consistency
 
@@ -163,11 +196,23 @@ Pick ONE storage approach for the whole extension:
 
 Never mix them. If your background.js uses chrome.storage.local but your popup uses localStorage, they'll have separate state and the extension won't work.
 
+## Icon files (do NOT overthink this)
+
+Create icons/icon16.png, icons/icon48.png, and icons/icon128.png as simple one-line placeholder text files. Example content: "// Placeholder for 16x16 PNG icon — replace with a real PNG before publishing".
+
+Strict rules:
+- Do NOT attempt to generate real PNG binary content, base64-encoded PNG data, or hex byte sequences in the file content.
+- Do NOT create helper files like icons/generate_icons.html, icons/create_icons.js, icons/README.md, or any other icon-generation script.
+- Do NOT delete and recreate icon files. Create each one ONCE with placeholder text.
+- Do NOT explain the icon situation in your summary beyond a single sentence like "Icons are placeholders — replace with real PNGs before publishing."
+
+The user knows the icons are placeholders. Our download flow handles this. Just create the three files and move on.
+
 ## File structure
 
 Always:
 - manifest.json at root
-- Icons in icons/ subfolder (icon16.png, icon48.png, icon128.png — placeholder content is fine, the user will replace them)
+- Icons in icons/ subfolder (icon16.png, icon48.png, icon128.png — placeholder content per the "Icon files" rule above)
 - HTML/CSS/JS files at root unless there are many of them (then group: popup/, options/)
 - Never nest files unnecessarily
 

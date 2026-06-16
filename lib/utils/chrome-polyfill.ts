@@ -132,8 +132,14 @@ export function getChromePolyfillJs(initialStorage: Record<string, unknown>): st
     },
 
     sendMessage: (tabId, message, ...rest) => {
-      console.log("[ExtBrew preview] chrome.tabs.sendMessage to tab", tabId, ":", message);
       const callback = typeof rest[rest.length - 1] === "function" ? rest[rest.length - 1] : null;
+      const requestId = nextRequestId++;
+      window.parent.postMessage({
+        source: "extbrew-iframe",
+        op: "tabs.sendMessage",
+        args: [tabId, message],
+        requestId,
+      }, "*");
       if (callback) setTimeout(() => callback(undefined), 0);
       return Promise.resolve(undefined);
     },

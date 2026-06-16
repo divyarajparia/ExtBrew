@@ -5,13 +5,15 @@ import { ChevronLeft, ChevronRight, Puzzle, RotateCw, X } from "lucide-react";
 import { useFileSystemStore } from "@/lib/stores/file-system-store";
 import { usePreviewStorageStore } from "@/lib/stores/preview-storage-store";
 import { useChatStore } from "@/lib/stores/chat-store";
-import { hasPopup, getExtensionName, getExtensionIconPath } from "@/lib/utils/preview-detect";
+import { hasPopup, isPageModifier, getExtensionName, getExtensionIconPath } from "@/lib/utils/preview-detect";
 import { buildPreviewHtml, isPreviewReady } from "@/lib/utils/build-preview-html";
-import { getFakePageHtml } from "@/lib/utils/fake-page-html";
+import { buildFakePageHtmlWithContentScript } from "@/lib/utils/fake-page-html";
+import { getContentScriptCode } from "@/lib/utils/preview-detect";
 
 export function PreviewPane() {
   const files = useFileSystemStore((s) => s.files);
   const popupExists = hasPopup(files);
+  const contentScriptExists = isPageModifier(files);
   const extName = getExtensionName(files);
   const iconPath = getExtensionIconPath(files);
   const isStreaming = useChatStore((s) => s.isStreaming);
@@ -47,11 +49,12 @@ export function PreviewPane() {
         </span>
       </div>
 
-      <div className="flex flex-1 items-start justify-center overflow-auto px-4 pb-4">
+      <div className="flex flex-1 items-stretch justify-center overflow-auto p-4">
         <FauxBrowserFrame
           extensionName={extName}
           iconPath={iconPath}
           popupExists={popupExists}
+          contentScriptExists={contentScriptExists}
           files={files}
           popupOpen={popupOpen}
           onIconClick={() => setPopupOpen((v) => !v)}
@@ -72,6 +75,7 @@ function FauxBrowserFrame({
   extensionName,
   iconPath,
   popupExists,
+  contentScriptExists,
   files,
   popupOpen,
   onIconClick,
@@ -80,6 +84,7 @@ function FauxBrowserFrame({
   extensionName: string | null;
   iconPath: string | null;
   popupExists: boolean;
+  contentScriptExists: boolean;
   files: Record<string, { content: string; language: string }>;
   popupOpen: boolean;
   onIconClick: () => void;
@@ -91,7 +96,7 @@ function FauxBrowserFrame({
   void files;
 
   return (
-    <div className="flex w-full max-w-[600px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
+    <div className="flex h-full w-full max-w-[600px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
       <div className="flex items-center gap-1.5 border-b border-border bg-muted px-3 py-2">
         <div className="flex gap-1.5">
           <div className="size-2.5 rounded-full bg-[#FF5F57]" />
@@ -107,7 +112,7 @@ function FauxBrowserFrame({
           example.com
         </div>
 
-        {popupExists && (
+        {popupExists ? (
           <button
             onClick={onIconClick}
             className={`ml-1 flex size-5 shrink-0 items-center justify-center rounded transition-colors ${
@@ -119,10 +124,17 @@ function FauxBrowserFrame({
           >
             <Puzzle size={12} />
           </button>
-        )}
+        ) : contentScriptExists ? (
+          <span
+            className="ml-1 flex size-5 shrink-0 items-center justify-center rounded bg-accent/40 text-accent-foreground"
+            title={extensionName ? `${extensionName} active on page` : "Extension active on page"}
+          >
+            <Puzzle size={12} />
+          </span>
+        ) : null}
       </div>
 
-      <div className="relative flex h-[460px] flex-col overflow-hidden bg-background">
+      <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
         {children}
       </div>
     </div>
@@ -141,6 +153,7 @@ function UnifiedPreviewBody({
   onPopupClose: () => void;
 }) {
   const [popupNaturalHeight, setPopupNaturalHeight] = useState(400);
+  const [popupNaturalWidth, setPopupNaturalWidth] = useState(0);
 
   return (
     <>
@@ -153,9 +166,11 @@ function UnifiedPreviewBody({
 
       {popupExists && popupOpen && (
         <div
-          className="absolute right-2 top-2 flex w-[300px] flex-col overflow-hidden rounded-md border border-border bg-background shadow-lg"
+          className="absolute right-2 top-2 flex flex-col overflow-hidden rounded-md border border-border bg-background shadow-lg"
           style={{
+            width: `${popupNaturalWidth > 0 ? popupNaturalWidth : 800}px`,
             height: `${popupNaturalHeight}px`,
+            opacity: popupNaturalWidth > 0 ? 1 : 0,
             transform: "scale(0.6)",
             transformOrigin: "top right",
           }}
@@ -168,7 +183,7 @@ function UnifiedPreviewBody({
           >
             <X size={16} />
           </button>
-          <PopupFrame onNaturalHeight={setPopupNaturalHeight} />
+          <PopupFrame onNaturalHeight={setPopupNaturalHeight} onNaturalWidth={setPopupNaturalWidth} />
         </div>
       )}
     </>
@@ -176,9 +191,31 @@ function UnifiedPreviewBody({
 }
 
 function FakePageFrame() {
-  const srcdoc = useMemo(() => getFakePageHtml(), []);
+  const files = useFileSystemStore((s) => s.files);
+  const fakePageIframeRef = useRef<HTMLIFrameElement>(null);
+
+  const srcdoc = useMemo(() => {
+    const contentScript = getContentScriptCode(files);
+    return buildFakePageHtmlWithContentScript(
+      contentScript,
+      usePreviewStorageStore.getState().data
+    );
+  }, [files]);
+
+  useEffect(() => {
+    if (!fakePageIframeRef.current) return;
+    const iframe = fakePageIframeRef.current;
+    (window as unknown as Record<string, unknown>).__extbrewFakePageIframe = iframe;
+    return () => {
+      if ((window as unknown as Record<string, unknown>).__extbrewFakePageIframe === iframe) {
+        delete (window as unknown as Record<string, unknown>).__extbrewFakePageIframe;
+      }
+    };
+  }, [srcdoc]);
+
   return (
     <iframe
+      ref={fakePageIframeRef}
       srcDoc={srcdoc}
       sandbox="allow-scripts"
       className="h-full w-full border-0 bg-white"
@@ -202,7 +239,7 @@ function EmptyState() {
   );
 }
 
-function PopupFrame({ onNaturalHeight }: { onNaturalHeight?: (h: number) => void }) {
+function PopupFrame({ onNaturalHeight, onNaturalWidth }: { onNaturalHeight?: (h: number) => void; onNaturalWidth?: (w: number) => void }) {
   const files = useFileSystemStore((s) => s.files);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const hasRenderedOnceRef = useRef(false);
@@ -225,7 +262,8 @@ function PopupFrame({ onNaturalHeight }: { onNaturalHeight?: (h: number) => void
   useEffect(() => {
     setNaturalHeight(400);
     onNaturalHeight?.(400);
-  }, [debouncedSrcdoc, onNaturalHeight]);
+    onNaturalWidth?.(0);
+  }, [debouncedSrcdoc, onNaturalHeight, onNaturalWidth]);
 
   useEffect(() => {
     if (!shouldRender) return;
@@ -246,6 +284,10 @@ function PopupFrame({ onNaturalHeight }: { onNaturalHeight?: (h: number) => void
         op?: string;
         args?: unknown[];
         requestId?: number;
+        height?: number;
+        width?: number;
+        target?: string;
+        message?: unknown;
       };
       if (!msg) return;
 
@@ -253,6 +295,23 @@ function PopupFrame({ onNaturalHeight }: { onNaturalHeight?: (h: number) => void
         const h = msg.height > 0 ? msg.height : 400;
         setNaturalHeight(h);
         onNaturalHeight?.(h);
+        if (typeof msg.width === "number" && msg.width > 0) {
+          onNaturalWidth?.(msg.width);
+        }
+        return;
+      }
+
+      if (msg?.source === "extbrew-iframe" && msg.op === "tabs.sendMessage") {
+        const fakePageIframe = (
+          (window as unknown as Record<string, unknown>).__extbrewFakePageIframe
+        ) as HTMLIFrameElement | undefined;
+        if (fakePageIframe?.contentWindow) {
+          fakePageIframe.contentWindow.postMessage({
+            source: "extbrew-content-forward",
+            message: msg.args?.[1],
+            requestId: msg.requestId,
+          }, "*");
+        }
         return;
       }
 
