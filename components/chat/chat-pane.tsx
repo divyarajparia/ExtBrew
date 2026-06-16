@@ -235,7 +235,7 @@ function MessageItem({
   return (
     <div className="flex flex-col gap-0.5 px-4 py-2">
       <span className="text-xs font-medium text-muted-foreground">
-        {message.role === "user" ? "You" : "Claude"}
+        {message.role === "user" ? "You" : "ExtBrew"}
       </span>
       {isThinking ? (
         <ThinkingDots />

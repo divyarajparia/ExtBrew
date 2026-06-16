@@ -29,7 +29,7 @@ export function FileTree() {
       {paths.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
           <span className="px-3 text-center text-xs text-muted-foreground">
-            Empty — ask Claude to build something
+            Empty — ask ExtBrew to build something
           </span>
         </div>
       ) : (

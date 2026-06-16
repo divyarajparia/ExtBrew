@@ -57,7 +57,7 @@ export function EditorPane() {
             <FolderOpen size={32} className="text-muted-foreground" />
             <p className="text-base font-medium">No files yet</p>
             <p className="text-sm text-muted-foreground">
-              Chat with Claude to build your first Chrome extension.
+              Chat with ExtBrew to build your first Chrome extension.
             </p>
           </div>
         ) : (
