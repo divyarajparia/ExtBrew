@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FlaskConical, Key, Settings } from "lucide-react";
 import {
   Group as PanelGroup,
@@ -71,10 +71,18 @@ function PaneShell({ label, children }: { label: string; children: React.ReactNo
 
 function ChatBody({ hydrated, onAddKey }: { hydrated: boolean; onAddKey: () => void }) {
   const apiKey = useApiKeyStore((s) => s.apiKey);
+  const [serverKeyConfigured, setServerKeyConfigured] = useState<boolean | null>(null);
 
-  if (!hydrated) return <div className="flex-1" />;
+  useEffect(() => {
+    fetch("/api/has-server-key")
+      .then((r) => r.json())
+      .then((d: { configured: boolean }) => setServerKeyConfigured(d.configured))
+      .catch(() => setServerKeyConfigured(false));
+  }, []);
 
-  if (!apiKey) {
+  if (!hydrated || serverKeyConfigured === null) return <div className="flex-1" />;
+
+  if (!apiKey && !serverKeyConfigured) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
         <Key size={32} className="text-muted-foreground" />

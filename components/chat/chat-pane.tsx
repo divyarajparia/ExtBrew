@@ -277,7 +277,7 @@ export function ChatPane() {
     setShowMode,
     popLastMessage,
   } = useChatStore();
-  const apiKey = useApiKeyStore((s) => s.apiKey)!;
+  const apiKey = useApiKeyStore((s) => s.apiKey) ?? "";
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);

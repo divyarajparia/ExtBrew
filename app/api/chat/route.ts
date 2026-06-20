@@ -454,12 +454,15 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { apiKey, messages, files } = body as {
-      apiKey: string;
+      apiKey?: string;
       messages: IncomingMessage[];
       files?: unknown;
     };
 
-    if (!apiKey || typeof apiKey !== "string") {
+    const effectiveKey =
+      (apiKey && typeof apiKey === "string" && apiKey.trim()) ||
+      process.env.ANTHROPIC_API_KEY;
+    if (!effectiveKey) {
       return NextResponse.json({ error: "API key required" }, { status: 400 });
     }
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -478,7 +481,7 @@ export async function POST(req: Request) {
           controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
         }
         try {
-          await runLoop(emit, apiKey, messages, workingFiles);
+          await runLoop(emit, effectiveKey, messages, workingFiles);
         } catch (err) {
           emit({ type: "error", message: err instanceof Error ? err.message : "Server error" });
         } finally {
