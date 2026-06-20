@@ -25,7 +25,7 @@ export function getFakePageHtml(): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>ExampleNews</title>
+  <title>DemoNews</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { min-height: 100%; }
@@ -101,7 +101,7 @@ export function getFakePageHtml(): string {
 </head>
 <body>
   <header class="site">
-    <h1>ExampleNews</h1>
+    <h1>DemoNews</h1>
     <div class="tagline">All The News That's Fit To Demo</div>
   </header>
 
@@ -159,7 +159,7 @@ export function getFakePageHtml(): string {
   </main>
 
   <footer class="site">
-    © 2026 ExampleNews · Demo page for ExtBrew
+    © 2026 DemoNews · Demo page for ExtBrew
   </footer>
 </body>
 </html>
