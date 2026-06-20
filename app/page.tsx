@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { FlaskConical, Key, Settings } from "lucide-react";
+import { useState } from "react";
+import { FlaskConical, Settings } from "lucide-react";
 import {
   Group as PanelGroup,
   Panel,
@@ -14,7 +14,7 @@ import { ChatPane } from "@/components/chat/chat-pane";
 import { EditorPane } from "@/components/editor/editor-pane";
 import { DownloadButton } from "@/components/header/download-button";
 import { PreviewPane } from "@/components/preview/preview-pane";
-import { useApiKeyStore, useHasHydrated } from "@/lib/stores/api-key-store";
+import { useHasHydrated } from "@/lib/stores/api-key-store";
 import { useInstallModalStore } from "@/lib/stores/install-modal-store";
 
 function GitHubIcon() {
@@ -69,46 +69,20 @@ function PaneShell({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function ChatBody({ hydrated, onAddKey }: { hydrated: boolean; onAddKey: () => void }) {
-  const apiKey = useApiKeyStore((s) => s.apiKey);
-  const [serverKeyConfigured, setServerKeyConfigured] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    fetch("/api/has-server-key")
-      .then((r) => r.json())
-      .then((d: { configured: boolean }) => setServerKeyConfigured(d.configured))
-      .catch(() => setServerKeyConfigured(false));
-  }, []);
-
-  if (!hydrated || serverKeyConfigured === null) return <div className="flex-1" />;
-
-  if (!apiKey && !serverKeyConfigured) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-        <Key size={32} className="text-muted-foreground" />
-        <p className="text-base font-medium">Connect your API key</p>
-        <p className="text-sm text-muted-foreground">
-          ExtBrew needs your key to scaffold extensions.
-        </p>
-        <Button onClick={onAddKey} className="mt-1">
-          Add API key
-        </Button>
-      </div>
-    );
-  }
-
+function ChatBody({ hydrated }: { hydrated: boolean }) {
+  if (!hydrated) return <div className="flex-1" />;
   return <ChatPane />;
 }
 
 // Pure-CSS skeleton rendered on the server and during the first client pass.
 // Uses flex weights that exactly match the panel defaultSize values so there
 // is no visible layout shift when the real PanelGroup mounts.
-function PanelSkeleton({ onAddKey, hydrated }: { onAddKey: () => void; hydrated: boolean }) {
+function PanelSkeleton({ hydrated }: { hydrated: boolean }) {
   return (
     <div className="flex h-full overflow-hidden">
       <div className="flex min-w-0 flex-col overflow-hidden" style={{ flex: "22 0 0" }}>
         <PaneShell label="Chat">
-          <ChatBody hydrated={hydrated} onAddKey={onAddKey} />
+          <ChatBody hydrated={hydrated} />
         </PaneShell>
       </div>
       <div className="w-px shrink-0 bg-border" />
@@ -135,7 +109,7 @@ export default function Home() {
           <PanelGroup orientation="horizontal" className="h-full">
             <Panel defaultSize="22" minSize="18" maxSize="35">
               <PaneShell label="Chat">
-                <ChatBody hydrated={hydrated} onAddKey={() => setModalOpen(true)} />
+                <ChatBody hydrated={hydrated} />
               </PaneShell>
             </Panel>
             <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-brew-border-hover cursor-col-resize" />
@@ -148,7 +122,7 @@ export default function Home() {
             </Panel>
           </PanelGroup>
         ) : (
-          <PanelSkeleton onAddKey={() => setModalOpen(true)} hydrated={hydrated} />
+          <PanelSkeleton hydrated={hydrated} />
         )}
       </main>
 
