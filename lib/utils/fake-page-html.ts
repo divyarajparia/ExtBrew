@@ -73,14 +73,7 @@ export function getFakePageHtml(): string {
       border-radius: 2px;
       margin-bottom: 10px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-family: "Helvetica Neue", Arial, sans-serif;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 1px;
+      display: block;
     }
     .hero p { font-size: 13px; color: #333; margin-bottom: 8px; }
     .articles { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
@@ -138,7 +131,7 @@ export function getFakePageHtml(): string {
     <article class="hero">
       <h2>Researchers Discover Local Browser Extensions Are More Interactive Than Ever Before</h2>
       <div class="meta">Published January 5, 2026 · By Demo Author</div>
-      <div class="hero-img">DEMO IMAGE</div>
+      <div class="hero-img"></div>
       <p>
         In a landmark development announced on March 14, 2025, browser-based extension previews
         have begun rendering live content with full interaction visible in real time.
