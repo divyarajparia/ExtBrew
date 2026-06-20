@@ -490,7 +490,7 @@ export function ChatPane() {
                 handleSend(input);
               }
             }}
-            placeholder="Block Twitter 9–5 on weekdays"
+            placeholder="Block Twitter 9-5 on weekdays"
             maxRows={6}
             className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
