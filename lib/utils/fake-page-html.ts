@@ -54,29 +54,7 @@ export function getFakePageHtml(): string {
       margin-top: 2px;
     }
     main { padding: 14px 16px; }
-    .hero { margin-bottom: 18px; }
-    .hero h2 {
-      font-size: 19px;
-      font-weight: 700;
-      line-height: 1.25;
-      margin-bottom: 6px;
-    }
-    .hero .meta {
-      font-size: 11px;
-      color: #888;
-      font-family: "Helvetica Neue", Arial, sans-serif;
-      margin-bottom: 10px;
-    }
-    .hero .hero-img {
-      width: 100%;
-      height: 120px;
-      border-radius: 2px;
-      margin-bottom: 10px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: block;
-    }
-    .hero p { font-size: 13px; color: #333; margin-bottom: 8px; }
-    .articles { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    .articles { display: flex; flex-direction: column; gap: 12px; }
     .article {
       border-top: 1px solid #e5e5e5;
       padding-top: 12px;
@@ -128,20 +106,6 @@ export function getFakePageHtml(): string {
   </header>
 
   <main>
-    <article class="hero">
-      <h2>Researchers Discover Local Browser Extensions Are More Interactive Than Ever Before</h2>
-      <div class="meta">Published January 5, 2026 · By Demo Author</div>
-      <div class="hero-img"></div>
-      <p>
-        In a landmark development announced on March 14, 2025, browser-based extension previews
-        have begun rendering live content with full interaction visible in real time.
-      </p>
-      <p>
-        The research, published 2024-11-20 in the Journal of Browser Studies, suggests that
-        developers can now iterate on extensions in seconds rather than minutes.
-      </p>
-    </article>
-
     <div class="articles">
       <article class="article">
         <div class="thumb thumb-1"></div>
